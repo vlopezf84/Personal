@@ -1,0 +1,149 @@
+USE [MIS_20180213_Aura]
+GO
+/****** Object:  StoredProcedure [dbo].[MIS_USP_LISTA_PJE_RES_DET]    Script Date: 26/10/2018 10:55:15 a.m. ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROCEDURE [dbo].[MIS_USP_LISTA_PJE_RES_DET]
+     @doc VARCHAR(MAX),
+     @recordCount INT = 0 OUTPUT,
+     @errorCode INT = 0 OUTPUT,
+     @errorDesc NVARCHAR(max) = null OUTPUT
+AS
+/************************************************************************************
+**APLICACION: MIS
+**CREADOR: ANTONIO MARTINEZ
+**DESCRIPCION: LISTA UN SET DE DATOS EN LA TABLA MIS_P_CAT_PJE_RES_DET
+**PROPOSITO: MANIPULAR LA INFORMACION DE LAS TABLAS CON STORE PROCEDURES
+*************************************************************************************
+**                       HISTORIAL DE CAMBIOS
+*************************************************************************************
+** VERSION         FECHA             AUTOR           MOTIVO DEL CAMBIO
+**-----------      -------------     -----------    ------------------------------
+**1.0.0            02 Mar 2018       AJMM          CREACION DEL STORE PROCEDURE
+*************************************************************************************/
+
+DECLARE @iDoc int 
+DECLARE @NodeName VARCHAR(100) = 'DATA/MIS_P_CAT_PJE_RES_DET'
+DECLARE @ErrorNumber AS int 
+DECLARE @ErrorSeverity AS int
+DECLARE @ErrorState AS int 
+DECLARE @ErrorProcedure AS nvarchar(128)
+DECLARE @ErrorLine AS int 
+DECLARE @ErrorMessage AS nvarchar(4000)
+
+SET  @errorCode = 0;
+SET  @errorDesc = '';
+
+-- LECTURA DEL XML A UN DOCUMENTO
+BEGIN TRY
+       EXEC sp_xml_preparedocument @iDoc OUTPUT, @doc;
+       --SI NO EXISTEN CAMPOS GENERA ERROR 
+        If @iDoc = 0 
+          RAISERROR ('XML no válido', 16, 1) WITH SETERROR
+END TRY
+BEGIN CATCH
+       SET @ErrorNumber = ERROR_NUMBER();
+       SET @ErrorSeverity=ERROR_SEVERITY();
+       SET @ErrorState=ERROR_STATE();
+       SET @ErrorProcedure = ERROR_PROCEDURE();
+       SET @ErrorLine=ERROR_LINE();
+       SET @ErrorMessage=ERROR_MESSAGE();
+--     EXEC sp_xml_removedocument @iDoc;
+       -- Registrar error en LOG 
+       SET  @errorCode = @ErrorNumber;
+       SET  @errorDesc = @ErrorMessage;
+    --EXEC usp_CSI_Insert_DatabaseLog @ErrorNumber, @ErrorMessage,   @ErrorSeverity,
+                           --              @ErrorState,     @ErrorProcedure, @ErrorLine,
+                           --              'XML_PHRASER';
+--  RETURN;
+    THROW;
+END CATCH
+
+-- LIST DE LOS DATOS DESDE LA LECTURA DEL XML
+BEGIN TRY
+SELECT 	table_base.ID_CATALOGO,
+	table_base.FILA,
+	table_base.SEGMENTO,
+	table_base.METODOLOGIA,
+	table_base.OPERADOR_INI,
+	table_base.VALOR_INI,
+	table_base.OPERADOR_FIN,
+	table_base.VALOR_FIN,
+	table_base.PUNTAJE_IN,
+	table_base.PUNTAJE_DEC,
+	table_base.FECHA_REGISTRO,
+	table_base.USUARIO_REGISTRO,
+	table_base.FECHA_ACTUALIZACION,
+	table_base.USUARIO_ACTUALIZACION
+FROM MIS_P_CAT_PJE_RES_DET AS table_base WITH(NOLOCK),
+( SELECT 
+	ID_CATALOGO,
+	FILA,
+	SEGMENTO,
+	METODOLOGIA,
+	OPERADOR_INI,
+	VALOR_INI,
+	OPERADOR_FIN,
+	VALOR_FIN,
+	PUNTAJE_IN,
+	PUNTAJE_DEC,
+	FECHA_REGISTRO,
+	USUARIO_REGISTRO,
+	FECHA_ACTUALIZACION,
+	USUARIO_ACTUALIZACION
+FROM OPENXML (@iDoc, @NodeName,1)
+WITH (
+	ID_CATALOGO VARCHAR(51) './ID_CATALOGO',
+	FILA INT './FILA',
+	SEGMENTO VARCHAR(51) './SEGMENTO',
+	METODOLOGIA VARCHAR(51) './METODOLOGIA',
+	OPERADOR_INI VARCHAR(31) './OPERADOR_INI',
+	VALOR_INI NUMERIC(18) './VALOR_INI',
+	OPERADOR_FIN VARCHAR(31) './OPERADOR_FIN',
+	VALOR_FIN NUMERIC(18) './VALOR_FIN',
+	PUNTAJE_IN INT './PUNTAJE_IN',
+	PUNTAJE_DEC NUMERIC(30) './PUNTAJE_DEC',
+	FECHA_REGISTRO DATE './FECHA_REGISTRO',
+	USUARIO_REGISTRO VARCHAR(31) './USUARIO_REGISTRO',
+	FECHA_ACTUALIZACION DATE './FECHA_ACTUALIZACION',
+	USUARIO_ACTUALIZACION VARCHAR(31) './USUARIO_ACTUALIZACION'
+)) AS table_XML
+WHERE table_base.ID_CATALOGO LIKE IsNULL(CONCAT(table_XML.ID_CATALOGO, '%'), table_base.ID_CATALOGO)
+  AND table_base.FILA LIKE IsNULL(CONCAT(table_XML.FILA, '%'), table_base.FILA)
+  AND (table_base.SEGMENTO LIKE IsNULL(CONCAT(table_XML.SEGMENTO, '%'), table_base.SEGMENTO) OR table_base.SEGMENTO IS NULL)
+  AND (table_base.METODOLOGIA LIKE IsNULL(CONCAT(table_XML.METODOLOGIA, '%'), table_base.METODOLOGIA) OR table_base.METODOLOGIA IS NULL)
+  AND (table_base.OPERADOR_INI LIKE IsNULL(CONCAT(table_XML.OPERADOR_INI, '%'), table_base.OPERADOR_INI) OR table_base.OPERADOR_INI IS NULL)
+  AND (table_base.VALOR_INI LIKE IsNULL(CONCAT(table_XML.VALOR_INI, '%'), table_base.VALOR_INI) OR table_base.VALOR_INI IS NULL)
+  AND (table_base.OPERADOR_FIN LIKE IsNULL(CONCAT(table_XML.OPERADOR_FIN, '%'), table_base.OPERADOR_FIN) OR table_base.OPERADOR_FIN IS NULL)
+  AND (table_base.VALOR_FIN LIKE IsNULL(CONCAT(table_XML.VALOR_FIN, '%'), table_base.VALOR_FIN) OR table_base.VALOR_FIN IS NULL)
+  AND (table_base.PUNTAJE_IN LIKE IsNULL(CONCAT(table_XML.PUNTAJE_IN, '%'), table_base.PUNTAJE_IN) OR table_base.PUNTAJE_IN IS NULL)
+  AND (table_base.PUNTAJE_DEC LIKE IsNULL(CONCAT(table_XML.PUNTAJE_DEC, '%'), table_base.PUNTAJE_DEC) OR table_base.PUNTAJE_DEC IS NULL)
+  AND (table_base.FECHA_REGISTRO LIKE IsNULL(table_XML.FECHA_REGISTRO, table_base.FECHA_REGISTRO) OR table_base.FECHA_REGISTRO IS NULL)
+  AND (table_base.USUARIO_REGISTRO LIKE IsNULL(CONCAT(table_XML.USUARIO_REGISTRO, '%'), table_base.USUARIO_REGISTRO) OR table_base.USUARIO_REGISTRO IS NULL)
+  AND (table_base.FECHA_ACTUALIZACION LIKE IsNULL(table_XML.FECHA_ACTUALIZACION, table_base.FECHA_ACTUALIZACION) OR table_base.FECHA_ACTUALIZACION IS NULL)
+  AND (table_base.USUARIO_ACTUALIZACION LIKE IsNULL(CONCAT(table_XML.USUARIO_ACTUALIZACION, '%'), table_base.USUARIO_ACTUALIZACION) OR table_base.USUARIO_ACTUALIZACION IS NULL)
+  
+SET @recordCount = @@ROWCOUNT
+
+EXEC sp_xml_removedocument @iDoc;
+END TRY
+BEGIN CATCH
+       -- Capturar variables de Error 
+       SET @ErrorNumber = ERROR_NUMBER();
+       SET @ErrorSeverity=ERROR_SEVERITY();
+       SET @ErrorState=ERROR_STATE();
+       SET @ErrorProcedure = ERROR_PROCEDURE();
+       SET @ErrorLine=ERROR_LINE(); 
+       SET @ErrorMessage=ERROR_MESSAGE();
+       EXEC sp_xml_removedocument @iDoc;
+       -- Registrar error en LOG 
+       SET @errorCode = @ErrorNumber;
+       SET @errorDesc = @ErrorMessage;
+       --EXEC [dbo].[usp_CSI_Insert_DatabaseLog] @ErrorNumber, @ErrorMessage,      @ErrorSeverity,
+                           --                @ErrorState,   @ErrorProcedure, @ErrorLine,
+                           --                'DATA_SELECT';
+       THROW;
+END CATCH;
