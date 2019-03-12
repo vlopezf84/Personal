@@ -1,0 +1,220 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using EntitiesCredenciales;
+using System.Data.Sql;
+using System.Data.SqlClient;
+using System.Data.Common;
+using System.Data;
+
+namespace DALCredenciales
+{
+    public class DALClientes
+    {
+                  
+        public static string constr
+        {
+            get
+            {
+                return System.Configuration.ConfigurationSettings.AppSettings["CadenaConexionFinal"].ToString();
+            }
+        }
+
+        public static DbProviderFactory dpf
+        {
+            get
+            {
+                return DbProviderFactories.GetFactory("System.Data.SqlClient");
+
+            }
+        }
+
+        public List<Clientes> GetAllClientes()
+        {               
+
+            try         
+                
+            {
+                List<Clientes> result = new List<Clientes>();
+                Clientes cliente;
+                string StoredProcedure = "sp_getClientes";
+
+                using (DbConnection con = dpf.CreateConnection())
+                {
+                    con.ConnectionString = constr;
+                    using (DbCommand cmd = dpf.CreateCommand())
+                    {
+                        cmd.Connection = con;
+                        cmd.CommandText = StoredProcedure;
+                        cmd.CommandType = CommandType.StoredProcedure;
+                    
+                        con.Open();
+                        using (DbDataReader dr = cmd.ExecuteReader())
+                        {
+                            if (dr.Read())
+                            {
+                                cliente = new Clientes();
+                                cliente.Nombre =  (string)dr["NOMBRE"];
+                                cliente.ApellidoPaterno =  (string)dr["APELLIDO_PATERNO"];
+                                cliente.ApellidoMaterno =  (string)dr["APELLIDO_MATERNO"];
+                                cliente.FechaNacimiento =  (DateTime)dr["FECHA_NAC"];
+                                cliente.NSS =  (string)dr["NSS"];
+                                result.Add(cliente);
+                            }
+                        }
+                    }
+                }
+
+                return result;    
+            }
+            catch (Exception ex)
+            {              
+                throw new Exception("Error al obtener los datos " + ex.Message);
+            }
+            
+        }
+
+        public void AddCliente(Clientes cliente)
+        {
+
+            try
+            {
+               
+                string StoredProcedure = "spi_InsertCliente";
+
+                List<DbParameter> parametros = new List<DbParameter>(); ;
+
+                DbParameter param = dpf.CreateParameter();
+                param.Value = cliente.Nombre;
+                param.ParameterName = "pNombre";
+                parametros.Add(param);
+
+                DbParameter param2 = dpf.CreateParameter();
+                param2.Value = cliente.ApellidoPaterno;
+                param2.ParameterName = "pApellidoPaterno";
+                parametros.Add(param2);
+
+                DbParameter param3 = dpf.CreateParameter();
+                param3.Value = cliente.ApellidoMaterno;
+                param3.ParameterName = "pApellidoMaterno";
+                parametros.Add(param3);
+
+                DbParameter param4 = dpf.CreateParameter();
+                param4.Value = cliente.FechaNacimiento;
+                param4.ParameterName = "pFechaNacimiento";
+                parametros.Add(param4);
+
+                DbParameter param5 = dpf.CreateParameter();
+                param5.Value = cliente.NSS;
+                param5.ParameterName = "pNSS";
+                parametros.Add(param5);
+
+                ejecutaOperacion(StoredProcedure, parametros);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error al obtener los datos " + ex.Message);
+            }
+
+        }
+
+        private static void ejecutaOperacion(string StoredProcedure, List<DbParameter> parametros)
+        {
+            using (DbConnection con = dpf.CreateConnection())
+            {
+                con.ConnectionString = constr;
+                using (DbCommand cmd = dpf.CreateCommand())
+                {
+                    cmd.Connection = con;
+                    cmd.CommandText = StoredProcedure;
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    foreach (DbParameter param in parametros)
+                        cmd.Parameters.Add(param);
+
+                    con.Open();
+
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+
+    }
+}
+
+
+Imports System.Configuration
+
+
+Public Class FrmLogin
+
+    Private Sub frmLogin_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+
+        EncriptaConfig()
+
+        If My.Application.CommandLineArgs.Count = 0 Then
+            MuestraMensaje("No tiene autorizacion para ejecutar este programa", String.Empty, "Error")
+            End
+        End If
+
+        Try
+            Dim commandLine As String = My.Application.CommandLineArgs(0)
+            If commandLine = "initAuthDiarios" Then
+                MuestraMensaje("Se iniciará el envío de los reportes. Presione 'Aceptar' para continuar", String.Empty, "Informacion")
+                ReportesDiarios()
+                ReportesDiariosOperaciones()
+                MuestraMensaje("Se concluyó el envío de los reportes", String.Empty, "Informacion")
+
+            ElseIf commandLine = "initAuthCORP" Then
+                'frmConsultaReportes.Show()
+                frmAutorizacion.Show()
+
+            ElseIf commandLine = "initAuthSUC" Then
+                Dim _ConnectionString As String
+                If My.Application.CommandLineArgs.Count = 2 Then
+                    Dim server As String = ConfigurationManager.AppSettings.Get((My.Application.CommandLineArgs(1).ToString & "SUC").ToString)
+                    _ConnectionString = "Server=" & server & ";Database=PDIDatos;User Id=sa;Password=4dm1n*.sql;"
+
+                    Dim dtSource As DataTable = mdlSucursal.AutoDineroCobranzaSuc(My.Application.CommandLineArgs(1), _ConnectionString)
+                    frmBuckets.dtOrigenDatos = dtSource
+                    frmBuckets.ShowDialog()
+                    frmBuckets.Dispose()
+                End If
+            Else
+                MsgBox("No tiene autorizacion para ejecutar este programa")
+                End
+            End If
+        Catch ex As Exception
+            MuestraMensaje("Ocurrió un error al iniciar el programa", ex.Message, "Error")
+        Finally
+            Close()
+        End Try
+    End Sub
+
+    Private Sub EncriptaConfig()
+        Try
+            Dim cm As Configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None)
+
+            Dim ms As ConfigurationSection = cm.GetSection("connectionStrings")
+            If Not ms.SectionInformation.IsProtected Then
+
+                ms.SectionInformation.ProtectSection("DataProtectionConfigurationProvider")
+                ms.SectionInformation.ForceSave = True
+                cm.Save(ConfigurationSaveMode.Full)
+            End If
+
+            Dim ac As ConfigurationSection = cm.GetSection("appSettings")
+            If Not ac.SectionInformation.IsProtected Then
+
+                ac.SectionInformation.ProtectSection("DataProtectionConfigurationProvider")
+                ac.SectionInformation.ForceSave = True
+                cm.Save(ConfigurationSaveMode.Full)
+            End If
+        Catch ex As Exception
+            MuestraMensaje("Error al encriptar archivo config", ex.Message, "Warning")
+        End Try
+    End Sub
+End Class
