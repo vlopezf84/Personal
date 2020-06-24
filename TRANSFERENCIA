@@ -1,0 +1,14 @@
+Private Shared Sub Main(ByVal args As String())
+    Dim store As X509Store = New X509Store(StoreLocation.CurrentUser)
+    store.Open(OpenFlags.[ReadOnly])
+    Dim certificates = store.Certificates.Find(X509FindType.FindBySerialNumber, "00A959C7EAF1CF7B07", False)
+    Dim certificate = certificates(0)
+    store.Close()
+    Dim privKey = CType(certificate.PrivateKey, RSACryptoServiceProvider)
+    Dim enhCsp = New RSACryptoServiceProvider().CspKeyContainerInfo
+    Dim cspparams = New CspParameters(enhCsp.ProviderType, enhCsp.ProviderName, privKey.CspKeyContainerInfo.KeyContainerName)
+    privKey = New RSACryptoServiceProvider(cspparams)
+    Dim data As Byte() = Encoding.UTF8.GetBytes("Data to be signed")
+    Dim sig As Byte() = privKey.SignData(data, CryptoConfig.MapNameToOID("SHA256"))
+    Dim isValid As Boolean = privKey.VerifyData(data, "SHA256", sig)
+End Sub
