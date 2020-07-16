@@ -12,3 +12,37 @@ Private Shared Sub Main(ByVal args As String())
     Dim sig As Byte() = privKey.SignData(data, CryptoConfig.MapNameToOID("SHA256"))
     Dim isValid As Boolean = privKey.VerifyData(data, "SHA256", sig)
 End Sub
+
+Sub Main()
+        Dim password As String = "mufg2020"
+        Dim key_path As String = "C:\CarpCert\key.key"
+        Dim cert_path As String = "C:\CarpCert\cert.cer"
+        Dim k As String = File.ReadAllText(key_path)
+        Dim c As String = File.ReadAllText(cert_path)
+
+        Dim key_bio As OpenSSL.Core.BIO = New OpenSSL.Core.BIO(k)
+        Dim cert_bio As OpenSSL.Core.BIO = New OpenSSL.Core.BIO(c)
+
+        Dim key As OpenSSL.Crypto.CryptoKey = OpenSSL.Crypto.CryptoKey.FromPrivateKey(k, "mufg2020")
+        Dim cert As OpenSSL.X509.X509Certificate = New OpenSSL.X509.X509Certificate(cert_bio)
+        Dim hmm As OpenSSL.Core.Stack(Of OpenSSL.X509.X509Certificate) = New OpenSSL.Core.Stack(Of OpenSSL.X509.X509Certificate)()
+
+        Dim pfx = New OpenSSL.X509.PKCS12(password, key, cert, hmm)
+
+        Using pfxBio = BIO.MemoryBuffer()
+            pfx.Write(pfxBio)
+            Dim pfxFileByteArrayContent = pfxBio.ReadBytes(CInt(pfxBio.BytesPending)).Array
+            File.WriteAllBytes("C:\CarpCert\cert.pfx", pfxFileByteArrayContent)
+        End Using
+
+        Dim certifnal = New X509Certificate2("C:\CarpCert\cert.pfx", "mufg2020")
+
+        Dim privateKey As RSACryptoServiceProvider = CType(certifnal.PrivateKey, RSACryptoServiceProvider)
+        Dim privKey = CType(certifnal.PrivateKey, RSACryptoServiceProvider)
+        Dim enhCsp = New RSACryptoServiceProvider().CspKeyContainerInfo
+        Dim cspparams = New CspParameters(enhCsp.ProviderType, enhCsp.ProviderName, privKey.CspKeyContainerInfo.KeyContainerName)
+        privKey = New RSACryptoServiceProvider(cspparams)
+        Dim data As Byte() = Encoding.UTF8.GetBytes("Data to be signed")
+        Dim sig As Byte() = privKey.SignData(data, CryptoConfig.MapNameToOID("SHA256"))
+        Dim isValid As Boolean = privKey.VerifyData(data, "SHA256", sig)
+    End Sub
